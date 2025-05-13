@@ -19,7 +19,7 @@ def generate_post():
     duration = round(random.uniform(10.0, 60.0), 2)
     return {"topic": topic, "hashtags": hashtags, "duration": duration}
 
-# Recommender class using classifier
+# Classifier-based recommender
 class LocalRecommenderClassifier:
     def __init__(self):
         self.pipeline = None
@@ -69,8 +69,8 @@ class LocalRecommenderClassifier:
             return {k: round(v / total, 3) for k, v in topic_scores.items()} if total > 0 else topic_scores
         return topic_scores
 
-# Streamlit interface
-st.title("Classifier-based Local Recommender")
+# Streamlit UI
+st.title("Classifier-based Local Recommender with Flags")
 
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
@@ -83,15 +83,13 @@ st.subheader(f"Topic: {post['topic']}")
 st.text(f"Hashtags: {' '.join(post['hashtags'])}")
 st.text(f"Video Duration: {post['duration']} seconds")
 
-# User input
-liked = st.checkbox("Liked")
-commented = st.checkbox("Commented")
-interested = st.checkbox("Interested")
-not_interested = st.checkbox("Not Interested")
-time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2)
+liked = st.checkbox("Liked", key="liked_input")
+commented = st.checkbox("Commented", key="commented_input")
+interested = st.checkbox("Interested", key="interested_input")
+not_interested = st.checkbox("Not Interested", key="not_interested_input")
+time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2, key="watch_input")
 
 if st.button("Next"):
-    # Engagement logic
     engaged = int((time_watched / post['duration']) > 0.8 or liked or commented)
     if interested:
         engaged = 1
@@ -109,17 +107,17 @@ if st.button("Next"):
     })
 
     st.session_state.current_post = generate_post()
-    st.experimental_rerun()
 
-# Display log and preferences
+# Always show interaction log
 if st.session_state.interactions:
     df = pd.DataFrame(st.session_state.interactions)
     st.subheader("User Interactions")
     st.dataframe(df)
 
+    # Show predicted weights if enough data
     if len(df) >= 10:
         model = LocalRecommenderClassifier()
         model.fit(df.tail(100))
         weights = model.recommend(df)
-        st.subheader("Inferred Preferences")
+        st.subheader("Inferred Topic Preferences")
         st.bar_chart(pd.DataFrame(weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
