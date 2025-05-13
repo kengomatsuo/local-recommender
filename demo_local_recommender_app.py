@@ -99,7 +99,10 @@ if liked or commented or interested or not_interested:
         "interest_score": score
     })
     st.session_state.current_post = generate_post()
-    st.experimental_rerun()
+    try:
+        st.experimental_rerun()
+    except:
+        st.stop()
 
 if st.session_state.interactions:
     df = pd.DataFrame(st.session_state.interactions)
