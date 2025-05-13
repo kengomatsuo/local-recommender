@@ -86,10 +86,17 @@ st.text(f"Video Duration: {post['duration']} seconds")
 # User input
 liked = st.checkbox("Liked")
 commented = st.checkbox("Commented")
+interested = st.checkbox("Interested")
+not_interested = st.checkbox("Not Interested")
 time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2)
 
 if st.button("Next"):
+    # Engagement logic
     engaged = int((time_watched / post['duration']) > 0.8 or liked or commented)
+    if interested:
+        engaged = 1
+    if not_interested:
+        engaged = 0
 
     st.session_state.interactions.append({
         "topic": post["topic"],
