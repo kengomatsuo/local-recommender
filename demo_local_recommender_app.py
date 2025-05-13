@@ -2,15 +2,13 @@
 import streamlit as st
 import pandas as pd
 import random
-
-
-import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 
+# LocalRecommender class definition
 class LocalRecommender:
     def __init__(self, alpha=1.0):
         self.alpha = alpha
@@ -56,23 +54,27 @@ class LocalRecommender:
             return {k: round(v / total, 3) for k, v in topic_scores.items()} if total > 0 else topic_scores
         return topic_scores
 
-
+# Initialize recommender
 recommender = LocalRecommender()
 
+# Initialize session state
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
 
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
 tags_pool = ["ai", "design", "funny", "news", "vlog", "review"]
 
+# Generate a random post
 def generate_post():
     topic = random.choice(topics)
     hashtags = random.sample(tags_pool, k=random.randint(1, 3))
     duration = round(random.uniform(5.0, 60.0), 2)
     return {"topic": topic, "hashtags": hashtags, "duration": duration}
 
+# Display title
 st.title("Local Recommender Demo")
 
+# Set initial post
 if "current_post" not in st.session_state:
     st.session_state.current_post = generate_post()
 
@@ -81,13 +83,21 @@ st.subheader(f"Topic: {post['topic']}")
 st.text(f"Hashtags: {' '.join(post['hashtags'])}")
 st.text(f"Video Duration: {post['duration']} seconds")
 
-liked = st.button("Like")
-commented = st.button("Comment")
-interested = st.button("Mark as Interested")
-not_interested = st.button("Mark as Not Interested")
-time_watched = st.slider("How long did you watch this post?", 0.0, post['duration'] * 2, post['duration'] / 2)
+# Interactive inputs
+col1, col2, col3, col4 = st.columns(4)
+liked = col1.checkbox("Like", key="liked_input")
+commented = col2.checkbox("Comment", key="commented_input")
+interested = col3.checkbox("Interested", key="interested_input")
+not_interested = col4.checkbox("Not Interested", key="not_interested_input")
 
-if liked or commented or interested or not_interested:
+# Watch time slider
+time_watched = st.slider("How long did you watch this post?", 0.0, post['duration'] * 2, post['duration'] / 2, key="watchtime_slider")
+
+# Next button
+next_clicked = st.button("Next")
+
+# Save interaction and load new post on next
+if next_clicked:
     score = 0.7 if interested else (0.3 if liked or commented else 0.0)
     st.session_state.interactions.append({
         "topic": post["topic"],
@@ -99,11 +109,18 @@ if liked or commented or interested or not_interested:
         "interest_score": score
     })
     st.session_state.current_post = generate_post()
+    # Reset state
+    st.session_state.liked_input = False
+    st.session_state.commented_input = False
+    st.session_state.interested_input = False
+    st.session_state.not_interested_input = False
+    st.session_state.watchtime_slider = st.session_state.current_post["duration"] / 2
     try:
         st.experimental_rerun()
     except:
         st.stop()
 
+# Display interaction history and predictions
 if st.session_state.interactions:
     df = pd.DataFrame(st.session_state.interactions)
     st.subheader("Interaction Log")
