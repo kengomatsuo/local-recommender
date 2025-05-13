@@ -85,15 +85,14 @@ st.text(f"Video Duration: {post['duration']} seconds")
 
 liked = st.checkbox("Liked", key="liked_input")
 commented = st.checkbox("Commented", key="commented_input")
-interested = st.checkbox("Interested", key="interested_input")
-not_interested = st.checkbox("Not Interested", key="not_interested_input")
+interest_flag = st.radio("Interest Feedback", options=["Neutral", "Interested", "Not Interested"], index=0)
 time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2, key="watch_input")
 
 if st.button("Next"):
     engaged = int((time_watched / post['duration']) > 0.8 or liked or commented)
-    if interested:
+    if interest_flag == "Interested":
         engaged = 1
-    if not_interested:
+    elif interest_flag == "Not Interested":
         engaged = 0
 
     st.session_state.interactions.append({
