@@ -79,19 +79,36 @@ if "current_post" not in st.session_state:
     st.session_state.current_post = generate_post()
 
 post = st.session_state.current_post
+
+# Initialize widget session states
+if "liked_input" not in st.session_state:
+    st.session_state.liked_input = False
+if "commented_input" not in st.session_state:
+    st.session_state.commented_input = False
+if "interested_input" not in st.session_state:
+    st.session_state.interested_input = False
+if "not_interested_input" not in st.session_state:
+    st.session_state.not_interested_input = False
+if "watchtime_slider" not in st.session_state:
+    st.session_state.watchtime_slider = st.session_state.current_post['duration'] / 2
+
 st.subheader(f"Topic: {post['topic']}")
 st.text(f"Hashtags: {' '.join(post['hashtags'])}")
 st.text(f"Video Duration: {post['duration']} seconds")
 
 # Interactive inputs
 col1, col2, col3, col4 = st.columns(4)
-liked = col1.checkbox("Like", key="liked_input")
-commented = col2.checkbox("Comment", key="commented_input")
-interested = col3.checkbox("Interested", key="interested_input")
-not_interested = col4.checkbox("Not Interested", key="not_interested_input")
+liked = col1.checkbox("Like", value=st.session_state.liked_input, key="liked_input")
+commented = col2.checkbox("Comment", value=st.session_state.commented_input, key="commented_input")
+interested = col3.checkbox("Interested", value=st.session_state.interested_input, key="interested_input")
+not_interested = col4.checkbox("Not Interested", value=st.session_state.not_interested_input, key="not_interested_input")
 
-# Watch time slider
-time_watched = st.slider("How long did you watch this post?", 0.0, post['duration'] * 2, post['duration'] / 2, key="watchtime_slider")
+time_watched = st.slider(
+    "How long did you watch this post?",
+    0.0, post['duration'] * 2,
+    value=st.session_state.watchtime_slider,
+    key="watchtime_slider"
+)
 
 # Next button
 next_clicked = st.button("Next")
@@ -109,12 +126,12 @@ if next_clicked:
         "interest_score": score
     })
     st.session_state.current_post = generate_post()
-    # Reset state
-    st.session_state.liked_input = False
-    st.session_state.commented_input = False
-    st.session_state.interested_input = False
-    st.session_state.not_interested_input = False
-    st.session_state.watchtime_slider = st.session_state.current_post["duration"] / 2
+
+    # Clear widget states on rerun
+    for key in ["liked_input", "commented_input", "interested_input", "not_interested_input", "watchtime_slider"]:
+        if key in st.session_state:
+            del st.session_state[key]
+
     try:
         st.experimental_rerun()
     except:
