@@ -46,11 +46,11 @@ class LocalRecommenderClassifier:
         self.topics = []
 
     def fit(self, df_user: pd.DataFrame):
-        df = df_user.copy()
+        df = df_user[df_user['engaged'] != 1]  # Exclude neutral rows from training
         df['liked'] = df['liked'].astype(int)
         df['commented'] = df['commented'].astype(int)
         df['hashtags_str'] = df['hashtags'].apply(lambda x: " ".join(x))
-        self.topics = df['topic'].unique()
+        self.topics = df_user['topic'].unique()
         X = df[['topic', 'liked', 'commented', 'duration', 'time_watched', 'hashtags_str']]
         y = df['engaged']
 
@@ -89,7 +89,7 @@ class LocalRecommenderClassifier:
         return topic_scores
 
 # ------------------- Streamlit App -------------------
-st.title("Classifier-based Local Recommender with ZKP")
+st.title("Local Recommender with ZKP (3-State Engagement)")
 
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
@@ -108,11 +108,12 @@ interest_flag = st.radio("Interest Feedback", options=["Neutral", "Interested", 
 time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2, key="watch_input")
 
 if st.button("Next"):
-    engaged = int((time_watched / post['duration']) > 0.8 or liked or commented)
     if interest_flag == "Interested":
-        engaged = 1
+        engaged = 2
     elif interest_flag == "Not Interested":
         engaged = 0
+    else:
+        engaged = 1  # Neutral
 
     st.session_state.interactions.append({
         "topic": post["topic"],
@@ -131,7 +132,7 @@ if st.session_state.interactions:
     st.subheader("User Interactions")
     st.dataframe(df)
 
-    if len(df) >= 10:
+    if len(df[df["engaged"] != 1]) >= 10:
         model = LocalRecommenderClassifier()
         model.fit(df.tail(100))
         weights = model.recommend(df)
@@ -140,12 +141,10 @@ if st.session_state.interactions:
 
         # ZKP Output Section
         st.subheader("Zero-Knowledge Proof (ZKP)")
-
         challenge = st.session_state.challenge
         proof = generate_zkp_proof(challenge)
         st.text(f"Challenge: {challenge}")
         st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
-
         verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
         if verified:
             st.success("✅ ZKP Verification Passed")
