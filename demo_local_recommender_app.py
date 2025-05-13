@@ -3,13 +3,33 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import random
+import secrets
+import nacl.signing
+import nacl.encoding
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 
-# Simulate a post
+# ------------------- ZKP Setup -------------------
+if "signing_key" not in st.session_state:
+    st.session_state.signing_key = nacl.signing.SigningKey.generate()
+    st.session_state.verify_key = st.session_state.signing_key.verify_key
+    st.session_state.challenge = secrets.token_hex(16)
+
+def generate_zkp_proof(challenge: str):
+    key = st.session_state.signing_key
+    return key.sign(challenge.encode(), encoder=nacl.encoding.HexEncoder)
+
+def verify_zkp_proof(proof, challenge: str, verify_key):
+    try:
+        verify_key.verify(proof, encoder=nacl.encoding.HexEncoder)
+        return True
+    except:
+        return False
+
+# ------------------- Recommender Classifier -------------------
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
 tags_pool = ["ai", "design", "funny", "news", "vlog", "review"]
 
@@ -19,7 +39,6 @@ def generate_post():
     duration = round(random.uniform(10.0, 60.0), 2)
     return {"topic": topic, "hashtags": hashtags, "duration": duration}
 
-# Classifier-based recommender
 class LocalRecommenderClassifier:
     def __init__(self):
         self.pipeline = None
@@ -69,8 +88,8 @@ class LocalRecommenderClassifier:
             return {k: round(v / total, 3) for k, v in topic_scores.items()} if total > 0 else topic_scores
         return topic_scores
 
-# Streamlit UI
-st.title("Classifier-based Local Recommender with Flags")
+# ------------------- Streamlit App -------------------
+st.title("Classifier-based Local Recommender with ZKP")
 
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
@@ -107,16 +126,28 @@ if st.button("Next"):
 
     st.session_state.current_post = generate_post()
 
-# Always show interaction log
 if st.session_state.interactions:
     df = pd.DataFrame(st.session_state.interactions)
     st.subheader("User Interactions")
     st.dataframe(df)
 
-    # Show predicted weights if enough data
     if len(df) >= 10:
         model = LocalRecommenderClassifier()
         model.fit(df.tail(100))
         weights = model.recommend(df)
         st.subheader("Inferred Topic Preferences")
         st.bar_chart(pd.DataFrame(weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
+
+        # ZKP Output Section
+        st.subheader("Zero-Knowledge Proof (ZKP)")
+
+        challenge = st.session_state.challenge
+        proof = generate_zkp_proof(challenge)
+        st.text(f"Challenge: {challenge}")
+        st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
+
+        verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
+        if verified:
+            st.success("✅ ZKP Verification Passed")
+        else:
+            st.error("❌ ZKP Verification Failed")
