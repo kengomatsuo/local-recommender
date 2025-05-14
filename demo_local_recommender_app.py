@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -18,9 +17,11 @@ if "signing_key" not in st.session_state:
     st.session_state.verify_key = st.session_state.signing_key.verify_key
     st.session_state.challenge = secrets.token_hex(16)
 
+
 def generate_zkp_proof(challenge: str):
     key = st.session_state.signing_key
     return key.sign(challenge.encode(), encoder=nacl.encoding.HexEncoder)
+
 
 def verify_zkp_proof(proof, challenge: str, verify_key):
     try:
@@ -29,15 +30,18 @@ def verify_zkp_proof(proof, challenge: str, verify_key):
     except:
         return False
 
+
 # ------------------- Recommender Classifier -------------------
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
 tags_pool = ["ai", "design", "funny", "news", "vlog", "review"]
+
 
 def generate_post():
     topic = random.choice(topics)
     hashtags = random.sample(tags_pool, k=random.randint(1, 3))
     duration = round(random.uniform(10.0, 60.0), 2)
     return {"topic": topic, "hashtags": hashtags, "duration": duration}
+
 
 class LocalRecommenderClassifier:
     def __init__(self):
@@ -46,24 +50,34 @@ class LocalRecommenderClassifier:
         self.topics = []
 
     def fit(self, df_user: pd.DataFrame):
-        df = df_user[df_user['engaged'] != 1]  # Exclude neutral rows from training
-        df['liked'] = df['liked'].astype(int)
-        df['commented'] = df['commented'].astype(int)
-        df['hashtags_str'] = df['hashtags'].apply(lambda x: " ".join(x))
-        self.topics = df_user['topic'].unique()
-        X = df[['topic', 'liked', 'commented', 'duration', 'time_watched', 'hashtags_str']]
-        y = df['engaged']
+        df = df_user[df_user["engaged"] != 1]  # Exclude neutral rows from training
+        df["liked"] = df["liked"].astype(int)
+        df["commented"] = df["commented"].astype(int)
+        df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
+        self.topics = df_user["topic"].unique()
+        X = df[
+            ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str"]
+        ]
+        y = df["engaged"]
 
-        preprocessor = ColumnTransformer(transformers=[
-            ('topic', CountVectorizer(), 'topic'),
-            ('hashtags', CountVectorizer(), 'hashtags_str'),
-            ('num', StandardScaler(), ['liked', 'commented', 'duration', 'time_watched'])
-        ])
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ("topic", CountVectorizer(), "topic"),
+                ("hashtags", CountVectorizer(), "hashtags_str"),
+                (
+                    "num",
+                    StandardScaler(),
+                    ["liked", "commented", "duration", "time_watched"],
+                ),
+            ]
+        )
 
-        self.pipeline = Pipeline(steps=[
-            ('prep', preprocessor),
-            ('clf', RandomForestClassifier(n_estimators=100, random_state=42))
-        ])
+        self.pipeline = Pipeline(
+            steps=[
+                ("prep", preprocessor),
+                ("clf", RandomForestClassifier(n_estimators=100, random_state=42)),
+            ]
+        )
         self.pipeline.fit(X, y)
         self.trained = True
 
@@ -71,34 +85,61 @@ class LocalRecommenderClassifier:
         if not self.trained:
             return {}, {}
         df = df_user.copy()
-        df['liked'] = df['liked'].astype(int)
-        df['commented'] = df['commented'].astype(int)
-        df['hashtags_str'] = df['hashtags'].apply(lambda x: " ".join(x))
+        df["liked"] = df["liked"].astype(int)
+        df["commented"] = df["commented"].astype(int)
+        df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
 
         topic_scores = {}
         hashtag_scores = {}
         for topic in self.topics:
-            samples = df[df['topic'] == topic]
+            samples = df[df["topic"] == topic]
             if not samples.empty:
-                X_topic = samples[['topic', 'liked', 'commented', 'duration', 'time_watched', 'hashtags_str']]
+                X_topic = samples[
+                    [
+                        "topic",
+                        "liked",
+                        "commented",
+                        "duration",
+                        "time_watched",
+                        "hashtags_str",
+                    ]
+                ]
                 preds = self.pipeline.predict_proba(X_topic)[:, 1]
                 topic_scores[topic] = round(preds.mean(), 3)
 
-        all_hashtags = set(tag for tags in df['hashtags'] for tag in tags)
+        all_hashtags = set(tag for tags in df["hashtags"] for tag in tags)
         for tag in all_hashtags:
-            samples = df[df['hashtags'].apply(lambda tags: tag in tags)]
+            samples = df[df["hashtags"].apply(lambda tags: tag in tags)]
             if not samples.empty:
-                X_tag = samples[['topic', 'liked', 'commented', 'duration', 'time_watched', 'hashtags_str']]
+                X_tag = samples[
+                    [
+                        "topic",
+                        "liked",
+                        "commented",
+                        "duration",
+                        "time_watched",
+                        "hashtags_str",
+                    ]
+                ]
                 preds = self.pipeline.predict_proba(X_tag)[:, 1]
                 hashtag_scores[tag] = round(preds.mean(), 3)
 
         if normalize:
             t_total = sum(topic_scores.values())
             h_total = sum(hashtag_scores.values())
-            topic_scores = {k: round(v / t_total, 3) for k, v in topic_scores.items()} if t_total > 0 else {}
-            hashtag_scores = {k: round(v / h_total, 3) for k, v in hashtag_scores.items()} if h_total > 0 else {}
+            topic_scores = (
+                {k: round(v / t_total, 3) for k, v in topic_scores.items()}
+                if t_total > 0
+                else {}
+            )
+            hashtag_scores = (
+                {k: round(v / h_total, 3) for k, v in hashtag_scores.items()}
+                if h_total > 0
+                else {}
+            )
 
         return topic_scores, hashtag_scores
+
 
 # ------------------- Streamlit App -------------------
 st.title("Local Recommender with ZKP (3-State Engagement + Hashtags)")
@@ -116,26 +157,34 @@ st.text(f"Video Duration: {post['duration']} seconds")
 
 liked = st.checkbox("Liked", key="liked_input")
 commented = st.checkbox("Commented", key="commented_input")
-interest_flag = st.radio("Interest Feedback", options=["Neutral", "Interested", "Not Interested"], index=0)
-time_watched = st.slider("Time Watched", 0.0, post['duration'] * 2, post['duration'] / 2, key="watch_input")
+interest_flag = st.radio(
+    "Interest Feedback", options=["Neutral", "Interested", "Not Interested"], index=0
+)
+time_watched = st.slider(
+    "Time Watched", 0.0, post["duration"] * 2, post["duration"] / 2, key="watch_input"
+)
 
 if st.button("Next"):
     if interest_flag == "Interested":
         engaged = 2
-    elif interest_flag == "Not Interested":
+    elif interest_flag == "Not Interested" or (
+        (time_watched / post["duration"]) < 0.25 and not liked and not commented
+    ):
         engaged = 0
     else:
-        engaged = 1  # Neutral
+        engaged = int((time_watched / post["duration"]) > 0.8 or liked or commented) + 1
 
-    st.session_state.interactions.append({
-        "topic": post["topic"],
-        "hashtags": post["hashtags"],
-        "liked": liked,
-        "commented": commented,
-        "time_watched": time_watched,
-        "duration": post["duration"],
-        "engaged": engaged
-    })
+    st.session_state.interactions.append(
+        {
+            "topic": post["topic"],
+            "hashtags": post["hashtags"],
+            "liked": liked,
+            "commented": commented,
+            "time_watched": time_watched,
+            "duration": post["duration"],
+            "engaged": engaged,
+        }
+    )
 
     st.session_state.current_post = generate_post()
 
@@ -150,10 +199,18 @@ if st.session_state.interactions:
         topic_weights, hashtag_weights = model.recommend(df)
 
         st.subheader("Inferred Topic Preferences")
-        st.bar_chart(pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
+        st.bar_chart(
+            pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index(
+                "Topic"
+            )
+        )
 
         st.subheader("Inferred Hashtag Preferences")
-        st.bar_chart(pd.DataFrame(hashtag_weights.items(), columns=["Hashtag", "Weight"]).set_index("Hashtag"))
+        st.bar_chart(
+            pd.DataFrame(
+                hashtag_weights.items(), columns=["Hashtag", "Weight"]
+            ).set_index("Hashtag")
+        )
 
         st.subheader("Zero-Knowledge Proof (ZKP)")
         challenge = st.session_state.challenge
