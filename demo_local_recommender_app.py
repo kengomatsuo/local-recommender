@@ -226,11 +226,21 @@ if st.session_state.interactions:
             st.info("Hashtag preferences will appear once the model has enough data.")
 
         st.subheader("ZKP Verification")
+
+        zkp_start = time.perf_counter()
+        tracemalloc.start()
+
         challenge = st.session_state.challenge
         proof = generate_zkp_proof(challenge)
+        verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
+
+        zkp_current, zkp_peak = tracemalloc.get_traced_memory()
+        zkp_time = time.perf_counter() - zkp_start
+        tracemalloc.stop()
+
         st.text(f"Challenge: {challenge}")
         st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
-        verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
+
         if verified:
             st.success("✅ ZKP Verification Passed")
         else:
@@ -238,6 +248,6 @@ if st.session_state.interactions:
 
         st.subheader("Performance Statistics")
         st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
-        st.markdown(
-            f"**Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)"
-        )
+        st.markdown(f"**ZKP Time:** {zkp_time:.4f} seconds")
+        st.markdown(f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)")
+        st.markdown(f"**ZKP Memory Usage:** {zkp_current / 1024:.2f} KB (current), {zkp_peak / 1024:.2f} KB (peak)")
