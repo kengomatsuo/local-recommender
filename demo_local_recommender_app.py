@@ -5,6 +5,8 @@ import random
 import secrets
 import nacl.signing
 import nacl.encoding
+import time
+import tracemalloc
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import StandardScaler
@@ -47,14 +49,12 @@ class LocalRecommenderClassifier:
     def __init__(self):
         self.pipeline = None
         self.trained = False
-        self.topics = []
 
     def fit(self, df_user: pd.DataFrame):
-        df = df_user[df_user["engaged"] != 1]  # Exclude neutral rows from training
+        df = df_user[df_user["engaged"] != 1]
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
-        self.topics = df_user["topic"].unique()
         X = df[
             ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str"]
         ]
@@ -73,7 +73,7 @@ class LocalRecommenderClassifier:
         )
 
         self.pipeline = Pipeline(
-            steps=[
+            [
                 ("prep", preprocessor),
                 ("clf", RandomForestClassifier(n_estimators=100, random_state=42)),
             ]
@@ -91,7 +91,8 @@ class LocalRecommenderClassifier:
 
         topic_scores = {}
         hashtag_scores = {}
-        for topic in self.topics:
+
+        for topic in df["topic"].unique():
             samples = df[df["topic"] == topic]
             if not samples.empty:
                 X_topic = samples[
@@ -104,7 +105,11 @@ class LocalRecommenderClassifier:
                         "hashtags_str",
                     ]
                 ]
-                preds = self.pipeline.predict_proba(X_topic)[:, 1]
+                probas = self.pipeline.predict_proba(X_topic)
+                if probas.shape[1] > 1:
+                    preds = probas[:, 1]
+                else:
+                    preds = np.zeros(len(probas))
                 topic_scores[topic] = round(preds.mean(), 3)
 
         all_hashtags = set(tag for tags in df["hashtags"] for tag in tags)
@@ -121,7 +126,11 @@ class LocalRecommenderClassifier:
                         "hashtags_str",
                     ]
                 ]
-                preds = self.pipeline.predict_proba(X_tag)[:, 1]
+                probas = self.pipeline.predict_proba(X_tag)
+                if probas.shape[1] > 1:
+                    preds = probas[:, 1]
+                else:
+                    preds = np.zeros(len(probas))
                 hashtag_scores[tag] = round(preds.mean(), 3)
 
         if normalize:
@@ -142,7 +151,7 @@ class LocalRecommenderClassifier:
 
 
 # ------------------- Streamlit App -------------------
-st.title("Local Recommender with ZKP (3-State Engagement + Hashtags)")
+st.title("Local Recommender with ZKP, Hashtags, and Performance Stats")
 
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
@@ -185,7 +194,6 @@ if st.button("Next"):
             "engaged": engaged,
         }
     )
-
     st.session_state.current_post = generate_post()
 
 if st.session_state.interactions:
@@ -194,9 +202,16 @@ if st.session_state.interactions:
     st.dataframe(df)
 
     if len(df[df["engaged"] != 1]) >= 10:
+        model_start = time.perf_counter()
+        tracemalloc.start()
+
         model = LocalRecommenderClassifier()
         model.fit(df.tail(100))
         topic_weights, hashtag_weights = model.recommend(df)
+
+        current, peak = tracemalloc.get_traced_memory()
+        model_time = time.perf_counter() - model_start
+        tracemalloc.stop()
 
         st.subheader("Inferred Topic Preferences")
         st.bar_chart(
@@ -212,7 +227,7 @@ if st.session_state.interactions:
             ).set_index("Hashtag")
         )
 
-        st.subheader("Zero-Knowledge Proof (ZKP)")
+        st.subheader("ZKP Verification")
         challenge = st.session_state.challenge
         proof = generate_zkp_proof(challenge)
         st.text(f"Challenge: {challenge}")
@@ -222,3 +237,9 @@ if st.session_state.interactions:
             st.success("✅ ZKP Verification Passed")
         else:
             st.error("❌ ZKP Verification Failed")
+
+        st.subheader("Performance Statistics")
+        st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
+        st.markdown(
+            f"**Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)"
+        )
