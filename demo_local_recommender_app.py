@@ -51,7 +51,7 @@ class LocalRecommenderClassifier:
         self.trained = False
 
     def fit(self, df_user: pd.DataFrame):
-        df = df_user[df_user["engaged"] != 1]
+        df = df_user[df_user["engaged"] != 1].copy()
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
