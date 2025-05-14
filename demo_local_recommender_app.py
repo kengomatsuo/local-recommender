@@ -214,18 +214,16 @@ if st.session_state.interactions:
         tracemalloc.stop()
 
         st.subheader("Inferred Topic Preferences")
-        st.bar_chart(
-            pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index(
-                "Topic"
-            )
-        )
-
+        if topic_weights:
+            st.bar_chart(pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
+        else:
+            st.info("Topic preferences will appear once the model has enough data.")
+        
         st.subheader("Inferred Hashtag Preferences")
-        st.bar_chart(
-            pd.DataFrame(
-                hashtag_weights.items(), columns=["Hashtag", "Weight"]
-            ).set_index("Hashtag")
-        )
+        if hashtag_weights:
+            st.bar_chart(pd.DataFrame(hashtag_weights.items(), columns=["Hashtag", "Weight"]).set_index("Hashtag"))
+        else:
+            st.info("Hashtag preferences will appear once the model has enough data.")
 
         st.subheader("ZKP Verification")
         challenge = st.session_state.challenge
