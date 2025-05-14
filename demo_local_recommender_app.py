@@ -69,14 +69,13 @@ class LocalRecommenderClassifier:
 
     def recommend(self, df_user: pd.DataFrame, normalize=True):
         if not self.trained:
-            return {}, {}
+            return {}
         df = df_user.copy()
         df['liked'] = df['liked'].astype(int)
         df['commented'] = df['commented'].astype(int)
         df['hashtags_str'] = df['hashtags'].apply(lambda x: " ".join(x))
 
         topic_scores = {}
-        hashtag_scores = {}
         for topic in self.topics:
             samples = df[df['topic'] == topic]
             if not samples.empty:
@@ -84,24 +83,13 @@ class LocalRecommenderClassifier:
                 preds = self.pipeline.predict_proba(X_topic)[:, 1]
                 topic_scores[topic] = round(preds.mean(), 3)
 
-        all_hashtags = set(tag for tags in df['hashtags'] for tag in tags)
-        for tag in all_hashtags:
-            samples = df[df['hashtags'].apply(lambda tags: tag in tags)]
-            if not samples.empty:
-                X_tag = samples[['topic', 'liked', 'commented', 'duration', 'time_watched', 'hashtags_str']]
-                preds = self.pipeline.predict_proba(X_tag)[:, 1]
-                hashtag_scores[tag] = round(preds.mean(), 3)
-
         if normalize:
-            t_total = sum(topic_scores.values())
-            h_total = sum(hashtag_scores.values())
-            topic_scores = {k: round(v / t_total, 3) for k, v in topic_scores.items()} if t_total > 0 else {}
-            hashtag_scores = {k: round(v / h_total, 3) for k, v in hashtag_scores.items()} if h_total > 0 else {}
-
-        return topic_scores, hashtag_scores
+            total = sum(topic_scores.values())
+            return {k: round(v / total, 3) for k, v in topic_scores.items()} if total > 0 else topic_scores
+        return topic_scores
 
 # ------------------- Streamlit App -------------------
-st.title("Local Recommender with ZKP (3-State Engagement + Hashtags)")
+st.title("Local Recommender with ZKP (3-State Engagement)")
 
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
@@ -147,14 +135,11 @@ if st.session_state.interactions:
     if len(df[df["engaged"] != 1]) >= 10:
         model = LocalRecommenderClassifier()
         model.fit(df.tail(100))
-        topic_weights, hashtag_weights = model.recommend(df)
-
+        weights = model.recommend(df)
         st.subheader("Inferred Topic Preferences")
-        st.bar_chart(pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
+        st.bar_chart(pd.DataFrame(weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
 
-        st.subheader("Inferred Hashtag Preferences")
-        st.bar_chart(pd.DataFrame(hashtag_weights.items(), columns=["Hashtag", "Weight"]).set_index("Hashtag"))
-
+        # ZKP Output Section
         st.subheader("Zero-Knowledge Proof (ZKP)")
         challenge = st.session_state.challenge
         proof = generate_zkp_proof(challenge)
