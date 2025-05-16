@@ -153,27 +153,25 @@ class LocalRecommenderClassifier:
 # ------------------- Streamlit App -------------------
 st.title("Local Recommender with ZKP, Hashtags, and Performance Stats")
 
+# Initialize session state variables
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
 
 if "current_post" not in st.session_state:
     st.session_state.current_post = generate_post()
-
-post = st.session_state.current_post
-st.subheader(f"Topic: {post['topic']}")
-st.text(f"Hashtags: {' '.join(post['hashtags'])}")
-st.text(f"Video Duration: {post['duration']} seconds")
-
-liked = st.checkbox("Liked", key="liked_input")
-commented = st.checkbox("Commented", key="commented_input")
-interest_flag = st.radio(
-    "Interest Feedback", options=["Neutral", "Interested", "Not Interested"], index=0
-)
-time_watched = st.slider(
-    "Time Watched", 0.0, post["duration"] * 2, post["duration"] / 2, key="watch_input"
-)
-
-if st.button("Next"):
+    
+# Add a post counter to use in widget keys to force them to reset
+if "post_counter" not in st.session_state:
+    st.session_state.post_counter = 0
+    
+# Add callback for the Next button
+def handle_next_click():
+    post = st.session_state.current_post
+    liked = st.session_state.liked_input
+    commented = st.session_state.commented_input
+    time_watched = st.session_state.watch_input
+    interest_flag = st.session_state.interest_input
+    
     if interest_flag == "Interested":
         engaged = 2
     elif interest_flag == "Not Interested" or (
@@ -194,7 +192,42 @@ if st.button("Next"):
             "engaged": engaged,
         }
     )
+    # Generate new post and increment counter
     st.session_state.current_post = generate_post()
+    st.session_state.post_counter += 1
+    
+    # Reset input values for next post
+    st.session_state.liked_input = False
+    st.session_state.commented_input = False
+    st.session_state.interest_input = "Neutral"
+    st.session_state.watch_input = st.session_state.current_post["duration"] / 2
+
+post = st.session_state.current_post
+post_key = str(st.session_state.post_counter)  # Use counter in keys to force refresh
+
+st.subheader(f"Topic: {post['topic']}")
+st.text(f"Hashtags: {' '.join(post['hashtags'])}")
+st.text(f"Video Duration: {post['duration']} seconds")
+
+# Add unique keys to widgets based on post_counter
+liked = st.checkbox("Liked", key=f"liked_input")
+commented = st.checkbox("Commented", key=f"commented_input")
+interest_flag = st.radio(
+    "Interest Feedback", 
+    options=["Neutral", "Interested", "Not Interested"], 
+    index=0,
+    key=f"interest_input"
+)
+time_watched = st.slider(
+    "Time Watched", 
+    0.0, 
+    post["duration"] * 2, 
+    post["duration"] / 2, 
+    key=f"watch_input"
+)
+
+# Use on_click instead of if st.button()
+st.button("Next", on_click=handle_next_click)
 
 if st.session_state.interactions:
     df = pd.DataFrame(st.session_state.interactions)
