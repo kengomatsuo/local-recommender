@@ -201,6 +201,8 @@ def handle_next_click():
     st.session_state.commented_input = False
     st.session_state.interest_input = "Neutral"
     st.session_state.watch_input = st.session_state.current_post["duration"] / 2
+    
+    generate_metrics()
 
 post = st.session_state.current_post
 post_key = str(st.session_state.post_counter)  # Use counter in keys to force refresh
@@ -229,58 +231,59 @@ time_watched = st.slider(
 # Use on_click instead of if st.button()
 st.button("Next", on_click=handle_next_click)
 
-if st.session_state.interactions:
-    df = pd.DataFrame(st.session_state.interactions)
-    st.subheader("User Interactions")
-    st.dataframe(df)
+def generate_metrics():
+    if st.session_state.interactions:
+        df = pd.DataFrame(st.session_state.interactions)
+        st.subheader("User Interactions")
+        st.dataframe(df)
 
-    if len(df[df["engaged"] != 1]) >= 10:
-        model_start = time.perf_counter()
-        tracemalloc.start()
+        if len(df[df["engaged"] != 1]) >= 10:
+            model_start = time.perf_counter()
+            tracemalloc.start()
 
-        model = LocalRecommenderClassifier()
-        model.fit(df.tail(100))
-        topic_weights, hashtag_weights = model.recommend(df)
+            model = LocalRecommenderClassifier()
+            model.fit(df.tail(100))
+            topic_weights, hashtag_weights = model.recommend(df)
 
-        current, peak = tracemalloc.get_traced_memory()
-        model_time = time.perf_counter() - model_start
-        tracemalloc.stop()
+            current, peak = tracemalloc.get_traced_memory()
+            model_time = time.perf_counter() - model_start
+            tracemalloc.stop()
 
-        st.subheader("Inferred Topic Preferences")
-        if topic_weights:
-            st.bar_chart(pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
-        else:
-            st.info("Topic preferences will appear once the model has enough data.")
-        
-        st.subheader("Inferred Hashtag Preferences")
-        if hashtag_weights:
-            st.bar_chart(pd.DataFrame(hashtag_weights.items(), columns=["Hashtag", "Weight"]).set_index("Hashtag"))
-        else:
-            st.info("Hashtag preferences will appear once the model has enough data.")
+            st.subheader("Inferred Topic Preferences")
+            if topic_weights:
+                st.bar_chart(pd.DataFrame(topic_weights.items(), columns=["Topic", "Weight"]).set_index("Topic"))
+            else:
+                st.info("Topic preferences will appear once the model has enough data.")
+            
+            st.subheader("Inferred Hashtag Preferences")
+            if hashtag_weights:
+                st.bar_chart(pd.DataFrame(hashtag_weights.items(), columns=["Hashtag", "Weight"]).set_index("Hashtag"))
+            else:
+                st.info("Hashtag preferences will appear once the model has enough data.")
 
-        st.subheader("ZKP Verification")
+            st.subheader("ZKP Verification")
 
-        zkp_start = time.perf_counter()
-        tracemalloc.start()
+            zkp_start = time.perf_counter()
+            tracemalloc.start()
 
-        challenge = st.session_state.challenge
-        proof = generate_zkp_proof(challenge)
-        verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
+            challenge = st.session_state.challenge
+            proof = generate_zkp_proof(challenge)
+            verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
 
-        zkp_current, zkp_peak = tracemalloc.get_traced_memory()
-        zkp_time = time.perf_counter() - zkp_start
-        tracemalloc.stop()
+            zkp_current, zkp_peak = tracemalloc.get_traced_memory()
+            zkp_time = time.perf_counter() - zkp_start
+            tracemalloc.stop()
 
-        st.text(f"Challenge: {challenge}")
-        st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
+            st.text(f"Challenge: {challenge}")
+            st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
 
-        if verified:
-            st.success("✅ ZKP Verification Passed")
-        else:
-            st.error("❌ ZKP Verification Failed")
+            if verified:
+                st.success("✅ ZKP Verification Passed")
+            else:
+                st.error("❌ ZKP Verification Failed")
 
-        st.subheader("Performance Statistics")
-        st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
-        st.markdown(f"**ZKP Time:** {zkp_time:.4f} seconds")
-        st.markdown(f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)")
-        st.markdown(f"**ZKP Memory Usage:** {zkp_current / 1024:.2f} KB (current), {zkp_peak / 1024:.2f} KB (peak)")
+            st.subheader("Performance Statistics")
+            st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
+            st.markdown(f"**ZKP Time:** {zkp_time:.4f} seconds")
+            st.markdown(f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)")
+            st.markdown(f"**ZKP Memory Usage:** {zkp_current / 1024:.2f} KB (current), {zkp_peak / 1024:.2f} KB (peak)")
