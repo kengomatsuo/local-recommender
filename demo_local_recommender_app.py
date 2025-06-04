@@ -7,8 +7,9 @@ import nacl.signing
 import nacl.encoding
 import time
 import tracemalloc
+from keybert import KeyBERT
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -37,13 +38,30 @@ def verify_zkp_proof(proof, challenge: str, verify_key):
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
 tags_pool = ["ai", "design", "funny", "news", "vlog", "review"]
 
+def generate_caption(topic):
+    templates = {
+        "tech": "Understanding the future of {}.",
+        "art": "The evolution of modern {}.",
+        "sports": "Why {} is more exciting than ever.",
+        "music": "How {} shaped music history.",
+        "news": "Breaking news: What you need to know about {}.",
+        "fashion": "This season's top trends in {}.",
+        "food": "How to cook the perfect {} dish.",
+        "gaming": "Why everyone is talking about {}."
+    }
+    return templates.get(topic, "An interesting look at {}.").format(topic)
 
 def generate_post():
     topic = random.choice(topics)
     hashtags = random.sample(tags_pool, k=random.randint(1, 3))
     duration = round(random.uniform(10.0, 60.0), 2)
-    return {"topic": topic, "hashtags": hashtags, "duration": duration}
+    caption = generate_caption(topic)
+    return {"topic": topic, "hashtags": hashtags, "duration": duration, "caption": caption}
 
+def extract_keybert_keywords(caption):
+    kb = KeyBERT(model="sentence-transformers/all-MiniLM-L6-v2")
+    keywords = kb.extract_keywords(caption, keyphrase_ngram_range=(1, 2), stop_words='english', top_n=5)
+    return ', '.join([kw[0] for kw in keywords])
 
 class LocalRecommenderClassifier:
     def __init__(self):
@@ -55,8 +73,11 @@ class LocalRecommenderClassifier:
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
+        # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
+        # df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
+        
         X = df[
-            ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str"]
+            ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str", "caption"]
         ]
         y = df["engaged"]
 
@@ -64,6 +85,9 @@ class LocalRecommenderClassifier:
             transformers=[
                 ("topic", CountVectorizer(), "topic"),
                 ("hashtags", CountVectorizer(), "hashtags_str"),
+                # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
+                # ("keybert", CountVectorizer(), "keybert_keywords"),
+                ("tfidf", TfidfVectorizer(stop_words='english', max_features=50), "caption"),
                 (
                     "num",
                     StandardScaler(),
@@ -88,6 +112,9 @@ class LocalRecommenderClassifier:
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
+        # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
+        # if "keybert_keywords" not in df.columns:
+        #     df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
 
         topic_scores = {}
         hashtag_scores = {}
@@ -103,6 +130,9 @@ class LocalRecommenderClassifier:
                         "duration",
                         "time_watched",
                         "hashtags_str",
+                        "caption",
+                        # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
+                        # "keybert_keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_topic)
@@ -124,6 +154,9 @@ class LocalRecommenderClassifier:
                         "duration",
                         "time_watched",
                         "hashtags_str",
+                        "caption",
+                        # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
+                        # "keybert_keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_tag)
@@ -170,7 +203,7 @@ def handle_next_click():
     post = st.session_state.current_post
     liked = st.session_state.liked_input
     commented = st.session_state.commented_input
-    time_watched = st.session_state.watch_input
+    time_watched = st.session_state[f"watch_input_{st.session_state.post_counter}"]
     interest_flag = st.session_state.interest_input
 
     if interest_flag == "Interested":
@@ -190,6 +223,7 @@ def handle_next_click():
             "commented": commented,
             "time_watched": time_watched,
             "duration": post["duration"],
+            "caption": post["caption"],
             "engaged": engaged,
         }
     )
@@ -201,7 +235,6 @@ def handle_next_click():
     st.session_state.liked_input = False
     st.session_state.commented_input = False
     st.session_state.interest_input = "Neutral"
-    st.session_state.watch_input = st.session_state.current_post["duration"] / 2
 
 
 post = st.session_state.current_post
@@ -209,6 +242,7 @@ post_key = str(st.session_state.post_counter)  # Use counter in keys to force re
 
 st.subheader(f"Topic: {post['topic']}")
 st.text(f"Hashtags: {' '.join(post['hashtags'])}")
+st.text(f"Caption: {post['caption']}")
 st.text(f"Video Duration: {post['duration']} seconds")
 
 # Add unique keys to widgets based on post_counter
@@ -221,7 +255,7 @@ interest_flag = st.radio(
     key=f"interest_input",
 )
 time_watched = st.slider(
-    "Time Watched", 0.0, post["duration"] * 2, post["duration"] / 2, key=f"watch_input"
+    "Time Watched", 0.0, post["duration"] * 2, post["duration"] / 2, key=f"watch_input_{st.session_state.post_counter}"
 )
 
 # Use on_click instead of if st.button()
