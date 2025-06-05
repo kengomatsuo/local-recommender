@@ -74,7 +74,7 @@ class LocalRecommenderClassifier:
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
         # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
-        # df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
+        df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
         
         X = df[
             ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str", "caption"]
@@ -86,7 +86,7 @@ class LocalRecommenderClassifier:
                 ("topic", CountVectorizer(), "topic"),
                 ("hashtags", CountVectorizer(), "hashtags_str"),
                 # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
-                # ("keybert", CountVectorizer(), "keybert_keywords"),
+                ("keybert", CountVectorizer(), "keybert_keywords"),
                 ("tfidf", TfidfVectorizer(stop_words='english', max_features=50), "caption"),
                 (
                     "num",
@@ -113,8 +113,8 @@ class LocalRecommenderClassifier:
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
         # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
-        # if "keybert_keywords" not in df.columns:
-        #     df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
+        if "keybert_keywords" not in df.columns:
+            df["keybert_keywords"] = df["caption"].apply(extract_keybert_keywords)
 
         topic_scores = {}
         hashtag_scores = {}
@@ -132,7 +132,7 @@ class LocalRecommenderClassifier:
                         "hashtags_str",
                         "caption",
                         # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
-                        # "keybert_keywords",
+                        "keybert_keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_topic)
@@ -156,7 +156,7 @@ class LocalRecommenderClassifier:
                         "hashtags_str",
                         "caption",
                         # ----------- Comment out the line below to enable keyBERT keyword extraction ----------- #
-                        # "keybert_keywords",
+                        "keybert_keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_tag)
