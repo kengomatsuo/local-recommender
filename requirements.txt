@@ -3,4 +3,4 @@ scikit-learn
 pandas
 pynacl
 keybert
-sentence_transformers
+sentence-transformers

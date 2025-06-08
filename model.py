@@ -7,10 +7,11 @@ from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 import pandas as pd
 import numpy as np
+from sentence_transformers import SentenceTransformer
 
 class KeyBERTVectorizer:
     def __init__(self, model='paraphrase-MiniLM-L6-v2', n_keywords=5):
-        self.kw_model = KeyBERT(model=model)
+        self.kw_model = KeyBERT(model=SentenceTransformer(model))
         self.n_keywords = n_keywords
         self.cache = {}
 
