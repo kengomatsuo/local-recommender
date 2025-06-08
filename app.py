@@ -21,7 +21,8 @@ if "model" not in st.session_state:
 # Add a cooldown variable to session state
 if "fit_cooldown" not in st.session_state:
     st.session_state.fit_cooldown = 0
-
+if st.session_state.fit_cooldown > 0:
+    st.info(f"Model fitting is on cooldown for {st.session_state.fit_cooldown} more post(s).")
 # Add callback for the Next button
 def handle_next_click():
     post = st.session_state.current_post
@@ -87,17 +88,17 @@ if st.session_state.interactions:
     st.subheader("User Interactions")
     st.dataframe(df)
 
-    if len(df[df["engaged"] != 1]) >= 10 and st.session_state.fit_cooldown == 0:
+    enough_data = len(df[df["engaged"] != 1]) >= 10
+    model = st.session_state.model
+
+    if enough_data:
+        if st.session_state.fit_cooldown == 0 and (not model.trained or len(df) - model.last_trained_on >= 5):
+            st.session_state.fit_cooldown = 10  # Set cooldown before fitting
+            model.fit(df)
+
         model_start = time.perf_counter()
         tracemalloc.start()
-
-        model = st.session_state.model
-        if not model.trained or len(df) - model.last_trained_on >= 5:
-            model.fit(df.tail(100))
-            st.session_state.fit_cooldown = 10  # Set cooldown after fitting
-
         topic_weights, hashtag_weights = model.recommend(df)
-
         current, peak = tracemalloc.get_traced_memory()
         model_time = time.perf_counter() - model_start
         tracemalloc.stop()
@@ -113,5 +114,3 @@ if st.session_state.interactions:
         st.subheader("Performance Statistics")
         st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
         st.markdown(f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)")
-    elif st.session_state.fit_cooldown > 0:
-        st.info(f"Model fitting is on cooldown for {st.session_state.fit_cooldown} more post(s).")
