@@ -4,6 +4,8 @@ import numpy as np
 import random
 import time
 import tracemalloc
+from sentence_transformers import SentenceTransformer
+import torch
 from keybert import KeyBERT
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
@@ -35,9 +37,19 @@ def generate_post():
     caption = generate_caption(topic)
     return {"topic": topic, "hashtags": hashtags, "duration": duration, "caption": caption}
 
+def extract_keywords_column(df, n_keywords=5):
+    if "keywords" not in df.columns:
+        df["keywords"] = ""
+    kw_model = KeyBERT(model="all-MiniLM-L6-v2")
+    for idx, row in df.iterrows():
+        if not row["keywords"]:
+            keywords = kw_model.extract_keywords(row["caption"], top_n=n_keywords)
+            df.at[idx, "keywords"] = " ".join([kw[0] for kw in keywords])
+    return df
+
 class KeyBERTVectorizer:
-    def __init__(self, model='all-MiniLM-L6-v2', n_keywords=5):
-        self.kw_model = KeyBERT(model=model)
+    def __init__(self, n_keywords=5):
+        self.kw_model = KeyBERT(model="all-MiniLM-L6-v2")
         self.n_keywords = n_keywords
 
     def transform(self, texts):
@@ -60,9 +72,10 @@ class LocalRecommenderClassifier:
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
-        
+        df = extract_keywords_column(df)  # Precompute keywords
+
         X = df[
-            ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str", "caption"]
+            ["topic", "liked", "commented", "duration", "time_watched", "hashtags_str", "caption", "keywords"]
         ]
         y = df["engaged"]
 
@@ -71,10 +84,7 @@ class LocalRecommenderClassifier:
                 ("topic", CountVectorizer(), "topic"),
                 ("hashtags", CountVectorizer(), "hashtags_str"),
                 ("tfidf", TfidfVectorizer(stop_words='english', max_features=50), "caption"),
-                ("keybert", Pipeline([
-                    ('kw', KeyBERTVectorizer(n_keywords=5)),
-                    ('vec', CountVectorizer())
-                ]), "caption"),
+                ("keywords", CountVectorizer(), "keywords"),  # Use cached keywords
                 (
                     "num",
                     StandardScaler(),
@@ -99,6 +109,7 @@ class LocalRecommenderClassifier:
         df["liked"] = df["liked"].astype(int)
         df["commented"] = df["commented"].astype(int)
         df["hashtags_str"] = df["hashtags"].apply(lambda x: " ".join(x))
+        df = extract_keywords_column(df)  # Ensure keywords are present
 
         topic_scores = {}
         hashtag_scores = {}
@@ -115,6 +126,7 @@ class LocalRecommenderClassifier:
                         "time_watched",
                         "hashtags_str",
                         "caption",
+                        "keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_topic)
@@ -137,6 +149,7 @@ class LocalRecommenderClassifier:
                         "time_watched",
                         "hashtags_str",
                         "caption",
+                        "keywords",
                     ]
                 ]
                 probas = self.pipeline.predict_proba(X_tag)
