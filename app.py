@@ -4,6 +4,7 @@ import time
 import tracemalloc
 from utils import generate_post
 from model import LocalRecommenderClassifier
+from sklearn.metrics import classification_report
 
 st.title("Local Recommender with Hashtags and Performance Stats")
 
@@ -122,14 +123,23 @@ if st.session_state.interactions:
                 topic_weights, hashtag_weights = model.recommend(df)
                 tracemalloc.stop()
                 
+                confusion_matrix = st.session_state.model.confusion_matrix
+                classification_report = st.session_state.model.classification_report
+
+
+                
                 # print(model.recommend(df, normalize=True))
                 # print(topic_weights, hashtag_weights)
                 # print(current, peak)
+                print(f"Confusion Matrix:\n{confusion_matrix}")
+                print(f"Classification Report:\n{classification_report}")
                 
                 st.session_state.model_time = model_time
                 st.session_state.model_memory = (current, peak)
                 st.session_state.topic_weights = topic_weights
                 st.session_state.hashtag_weights = hashtag_weights
+                st.session_state.confusion_matrix = confusion_matrix
+                st.session_state.classification_report = classification_report
                 
                 st.session_state.model_processing = False
                 st.session_state.fit_cooldown = 10
@@ -153,3 +163,12 @@ if st.session_state.interactions:
         current, peak = st.session_state.model_memory or (0, 0)
         st.markdown(
             f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)")
+
+        st.subheader("Confusion Matrix")
+        confusion_matrix = st.session_state.confusion_matrix
+        st.dataframe(confusion_matrix)
+        st.subheader("Classification Report")
+        classification_report = st.session_state.classification_report
+        if classification_report:
+            report_df = pd.DataFrame(classification_report).transpose()
+            st.dataframe(report_df)
