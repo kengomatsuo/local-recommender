@@ -1,5 +1,6 @@
 # utils.py
 import random
+import pandas as pd
 
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
 tags_pool = ["ai", "design", "funny", "news", "vlog", "review"]
@@ -17,14 +18,19 @@ def generate_caption(topic):
     }
     return templates.get(topic, "An interesting look at {}.").format(topic)
 
+def load_posts():
+    df = pd.read_csv("posts.csv")
+    posts = df.to_dict(orient="records")
+    for post in posts:
+        # Convert hashtags from comma-separated string to list
+        if isinstance(post["hashtags"], str):
+            post["hashtags"] = [h.strip() for h in post["hashtags"].split(",")]
+    return posts
+
+# Replace generate_post with a function that samples from posts.csv
+_posts_cache = None
 def generate_post():
-    topic = random.choice(topics)
-    hashtags = random.sample(tags_pool, k=random.randint(1, 3))
-    duration = round(random.uniform(10.0, 60.0), 2)
-    caption = generate_caption(topic)
-    return {
-        "topic": topic,
-        "hashtags": hashtags,
-        "duration": duration,
-        "caption": caption
-    }
+    global _posts_cache
+    if _posts_cache is None:
+        _posts_cache = load_posts()
+    return random.choice(_posts_cache)
