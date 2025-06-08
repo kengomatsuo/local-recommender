@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import random
-import secrets
-import nacl.signing
-import nacl.encoding
 import time
 import tracemalloc
 from keybert import KeyBERT
@@ -13,26 +10,6 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-
-# ------------------- ZKP Setup -------------------
-if "signing_key" not in st.session_state:
-    st.session_state.signing_key = nacl.signing.SigningKey.generate()
-    st.session_state.verify_key = st.session_state.signing_key.verify_key
-    st.session_state.challenge = secrets.token_hex(16)
-
-
-def generate_zkp_proof(challenge: str):
-    key = st.session_state.signing_key
-    return key.sign(challenge.encode(), encoder=nacl.encoding.HexEncoder)
-
-
-def verify_zkp_proof(proof, challenge: str, verify_key):
-    try:
-        verify_key.verify(proof, encoder=nacl.encoding.HexEncoder)
-        return True
-    except:
-        return False
-
 
 # ------------------- Recommender Classifier -------------------
 topics = ["tech", "art", "sports", "music", "news", "fashion", "food", "gaming"]
@@ -187,7 +164,7 @@ class LocalRecommenderClassifier:
 
 
 # ------------------- Streamlit App -------------------
-st.title("Local Recommender with ZKP, Hashtags, and Performance Stats")
+st.title("Local Recommender with Hashtags and Performance Stats")
 
 # Initialize session state variables
 if "interactions" not in st.session_state:
@@ -301,33 +278,8 @@ if st.session_state.interactions:
         else:
             st.info("Hashtag preferences will appear once the model has enough data.")
 
-        st.subheader("ZKP Verification")
-
-        zkp_start = time.perf_counter()
-        tracemalloc.start()
-
-        challenge = st.session_state.challenge
-        proof = generate_zkp_proof(challenge)
-        verified = verify_zkp_proof(proof, challenge, st.session_state.verify_key)
-
-        zkp_current, zkp_peak = tracemalloc.get_traced_memory()
-        zkp_time = time.perf_counter() - zkp_start
-        tracemalloc.stop()
-
-        st.text(f"Challenge: {challenge}")
-        st.text(f"Proof Signature (truncated): {proof.signature[:10].hex()}...")
-
-        if verified:
-            st.success("✅ ZKP Verification Passed")
-        else:
-            st.error("❌ ZKP Verification Failed")
-
         st.subheader("Performance Statistics")
         st.markdown(f"**Model Inference Time:** {model_time:.4f} seconds")
-        st.markdown(f"**ZKP Time:** {zkp_time:.4f} seconds")
         st.markdown(
             f"**Model Memory Usage:** {current / 1024:.2f} KB (current), {peak / 1024:.2f} KB (peak)"
-        )
-        st.markdown(
-            f"**ZKP Memory Usage:** {zkp_current / 1024:.2f} KB (current), {zkp_peak / 1024:.2f} KB (peak)"
         )
