@@ -9,8 +9,8 @@ import pandas as pd
 import numpy as np
 
 class KeyBERTVectorizer:
-    def __init__(self, model='all-MiniLM-L6-v2', n_keywords=5):
-        self.kw_model = KeyBERT(model="paraphrase-MiniLM-L6-v2")
+    def __init__(self, model='paraphrase-MiniLM-L6-v2', n_keywords=5):
+        self.kw_model = KeyBERT(model=model)
         self.n_keywords = n_keywords
         self.cache = {}
 
