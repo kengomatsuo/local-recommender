@@ -4,7 +4,7 @@ This is a Streamlit-based local recommender system that uses hashtags and perfor
 
 ## Extensions
 
-There is an **extension branch** (`extension/recommend-posts`) that expands the app to recommend posts directly to the user, based on their inferred preferences.  
+There is an **extension branch** (`recommends-posts-extension`) that expands the app to recommend posts directly to the user, based on their inferred preferences.  
 To try it out, switch to the branch with:
 
 ```powershell
