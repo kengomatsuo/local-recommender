@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import tracemalloc
-from utils import generate_post
+from utils import generate_post_batch  # changed import
 from model import LocalRecommenderClassifier
 from sklearn.metrics import classification_report
 
@@ -11,8 +11,10 @@ st.title("Local Recommender with Hashtags and Performance Stats")
 # Initialize session state variables
 if "interactions" not in st.session_state:
     st.session_state.interactions = []
-if "current_post" not in st.session_state:
-    st.session_state.current_post = generate_post()
+if "post_batch" not in st.session_state:
+    st.session_state.post_batch = []
+if "batch_index" not in st.session_state:
+    st.session_state.batch_index = 0
 if "post_counter" not in st.session_state:
     st.session_state.post_counter = 0
 if "model" not in st.session_state:
@@ -21,6 +23,33 @@ if "fit_cooldown" not in st.session_state:
     st.session_state.fit_cooldown = 0
 if "model_processing" not in st.session_state:
     st.session_state.model_processing = False
+if "topic_weights" not in st.session_state:
+    st.session_state.topic_weights = {}
+if "hashtag_weights" not in st.session_state:
+    st.session_state.hashtag_weights = {}
+
+# Helper to get preferences for batch generation
+
+
+def get_preferences():
+    return {
+        'topic_weights': st.session_state.topic_weights or {},
+        'hashtag_weights': st.session_state.hashtag_weights or {}
+    }
+
+
+# Function to request a new batch
+
+
+def request_new_batch():
+    preferences = get_preferences()
+    st.session_state.post_batch = generate_post_batch(preferences, batch_size=20)
+    st.session_state.batch_index = 0
+
+
+# On first run, request a batch
+if not st.session_state.post_batch:
+    request_new_batch()
 
 if st.session_state.fit_cooldown > 0:
     st.info(
@@ -30,7 +59,7 @@ if st.session_state.fit_cooldown > 0:
 
 
 def handle_next_click():
-    post = st.session_state.current_post
+    post = st.session_state.post_batch[st.session_state.batch_index]
     liked = st.session_state.liked_input
     commented = st.session_state.commented_input
     time_watched = st.session_state[f"watch_input_{st.session_state.post_counter}"]
@@ -58,17 +87,22 @@ def handle_next_click():
         "engaged": engaged,
     })
 
-    st.session_state.current_post = generate_post()
     st.session_state.post_counter += 1
     st.session_state.liked_input = False
     st.session_state.commented_input = False
     st.session_state.interest_input = "Neutral"
 
+    # Advance batch index, request new batch if needed
+    st.session_state.batch_index += 1
+    if st.session_state.batch_index >= len(st.session_state.post_batch):
+        request_new_batch()
+
     if st.session_state.fit_cooldown > 0:
         st.session_state.fit_cooldown -= 1
 
 
-post = st.session_state.current_post
+# Get current post
+post = st.session_state.post_batch[st.session_state.batch_index]
 post_key = str(st.session_state.post_counter)
 
 st.subheader(f"Topic: {post['topic']}")
@@ -105,46 +139,32 @@ if st.session_state.interactions:
     model = st.session_state.model
 
     if enough_data:
-        
         if st.session_state.fit_cooldown == 0 and (not model.trained or len(df) - model.last_trained_on >= 5):
             if (not st.session_state.model_processing):
                 st.session_state.model_processing = True
                 st.rerun()
             else:
                 st.info("Model fitting. Please wait. This will take a few seconds.")
-                
                 model_start = time.perf_counter()
                 tracemalloc.start()
-                # print(df)
                 model.fit(df)
                 current, peak = tracemalloc.get_traced_memory()
                 model_time = time.perf_counter() - model_start
-                
                 topic_weights, hashtag_weights = model.recommend(df)
                 tracemalloc.stop()
-                
                 confusion_matrix = st.session_state.model.confusion_matrix
                 classification_report = st.session_state.model.classification_report
-
-
-                
-                # print(model.recommend(df, normalize=True))
-                # print(topic_weights, hashtag_weights)
-                # print(current, peak)
-                print(f"Confusion Matrix:\n{confusion_matrix}")
-                print(f"Classification Report:\n{classification_report}")
-                
                 st.session_state.model_time = model_time
                 st.session_state.model_memory = (current, peak)
                 st.session_state.topic_weights = topic_weights
                 st.session_state.hashtag_weights = hashtag_weights
                 st.session_state.confusion_matrix = confusion_matrix
                 st.session_state.classification_report = classification_report
-                
                 st.session_state.model_processing = False
                 st.session_state.fit_cooldown = 10
+                # Request new batch after model predicts, using new preferences
+                request_new_batch()
                 st.rerun()
-        
         st.subheader("Inferred Topic Preferences")
         topic_weights = st.session_state.topic_weights
         if topic_weights:
@@ -168,7 +188,7 @@ if st.session_state.interactions:
         confusion_matrix = st.session_state.confusion_matrix
         st.dataframe(confusion_matrix)
         st.subheader("Classification Report")
-        classification_report = st.session_state.classification_report
+        classification_report = st.session_state.model.classification_report
         if classification_report:
             report_df = pd.DataFrame(classification_report).transpose()
             st.dataframe(report_df)
