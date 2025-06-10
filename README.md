@@ -1,6 +1,15 @@
 # Local Recommender App
 
-This is a Streamlit-based local recommender system that uses hashtags and performance stats to recommend posts.
+This is a Streamlit-based local recommender system that uses hashtags and performance stats to analyze user preferences.
+
+## Extensions
+
+There is an **extension branch** (`extension/recommend-posts`) that expands the app to recommend posts directly to the user, based on their inferred preferences.  
+To try it out, switch to the branch with:
+
+```powershell
+git checkout extension/recommend-posts
+```
 
 ## Requirements
 - Python 3.11 or newer
